@@ -290,29 +290,45 @@ class Grid:
 
         return np.array(np.meshgrid(x[0], x[1], x[2], x[3]))[Ellipsis, 0, :, :]
 
-    def coord_bulk(self, loc=Loci.CENT, mesh=False):
+    def get_system_coord(self, x):
+        """ Transform from native to coordinate specific grid values
+        """
+        x[1] = self.coords.r(x)
+        x[2] = self.coords.th(x)
+        x[3] = self.coords.phi(x)
+        return x
+
+    def coord_bulk(self, loc=Loci.CENT, mesh=False, native=False):
         """Return a 3D array of all position vectors X within the physical zones.
         See coord() for use.
         """
         if mesh:
-            return self.coord(np.arange(self.N[1]+1)+self.NG,
-                    np.arange(self.N[2]+1)+self.NG,
-                    np.arange(self.N[3]+1)+self.NG, loc=Loci.CORN)
+            resullt = self.coord(np.arange(self.N[1]+1)+self.NG,
+                        np.arange(self.N[2]+1)+self.NG,
+                        np.arange(self.N[3]+1)+self.NG, loc=Loci.CORN)
         else:
-            return self.coord(np.arange(self.N[1])+self.NG,
-                            np.arange(self.N[2])+self.NG,
-                            np.arange(self.N[3])+self.NG, loc=loc)
+            result =  self.coord(np.arange(self.N[1])+self.NG,
+                        np.arange(self.N[2])+self.NG,
+                        np.arange(self.N[3])+self.NG, loc=loc)
+        if native:
+            return result
+        else:
+            return self.get_system_coord(result)
 
-    def coord_all(self, loc=Loci.CENT, mesh=False):
+    def coord_all(self, loc=Loci.CENT, mesh=False, native=True):
         """Like coord_bulk, but including ghost zones"""
         if mesh:
-            return self.coord(np.arange(self.GN[1]+1),
-                            np.arange(self.GN[2]+1),
-                            np.arange(self.GN[3]+1), loc=Loci.CORN)
+            result = self.coord(np.arange(self.GN[1]+1),
+                        np.arange(self.GN[2]+1),
+                        np.arange(self.GN[3]+1), loc=Loci.CORN)
         else:
-            return self.coord(np.arange(self.GN[1]),
-                            np.arange(self.GN[2]),
-                            np.arange(self.GN[3]), loc=loc)
+            result = self.coord(np.arange(self.GN[1]),
+                        np.arange(self.GN[2]),
+                        np.arange(self.GN[3]), loc=loc)
+        if native:
+            return result
+        else:
+            return self.get_system_coord(result)
 
     def coord_ij(self, at=0, loc=Loci.CENT):
         """Get just a 2D meshgrid of locations, usually for plotting"""
@@ -400,7 +416,7 @@ class Grid:
         return np.min(dt_light_local)
 
     ### PLOTTING/CONVENIENCE
-    def get_xz_locations(self, mesh=False, native=False, half_cut=False, log_r=False):
+    def get_xz_locations(self, mesh=False, native=False, half_cut=False, log_r=False, coord=False):
         """Get the mesh locations x_ij and z_ij needed for plotting a poloidal slice.
         By default, gets locations at zone centers in slices phi=0,180.
         Note there is no need for an 'at' parameter, at least for plotting: 2D plots should be face-on.
@@ -408,6 +424,7 @@ class Grid:
         :param mesh: get mesh corners rather than centers, for flat shading
         :param native: get native X1/X2 coordinates rather than Cartesian x,z locations
         :param half_cut: get only the slice at phi=0
+        :param coord: convert output to coordinate aware, needs native to be False
         """
         # TODO cache this!
         # TODO oblate option for x=sqrt(r^2 + a^2) rather than r
@@ -433,19 +450,26 @@ class Grid:
         if native:
             x = m[1]
             z = m[2]
+            if coord:
+                print("Native parameter overrides coordinate parameter.")
         else:
-            x = self.coords.cart_x(m, log_r)
-            z = self.coords.cart_z(m, log_r)
+            if coord:
+                x = self.coords.r(m)
+                z = self.coords.phi(m)
+            else:
+                x = self.coords.cart_x(m, log_r)
+                z = self.coords.cart_z(m, log_r)
 
         return np.squeeze(x), np.squeeze(z)
 
-    def get_xy_locations(self, mesh=False, native=False, log_r=False):
+    def get_xy_locations(self, mesh=False, native=False, log_r=False, coord=False):
         """Get the mesh locations x_ij and y_ij needed for plotting a midplane slice.
         Note there is no need for an 'at' parameter, at least for plotting: 2D plots should be face-on.
 
         :param mesh: get mesh corners rather than centers, for flat shading
         :param native: get native X1/X3 coordinates rather than Cartesian x,z locations
         :param log_r: logarithmically compress the radial coordinate
+        :param coord: convert output to coordinate aware, needs native to be False
         """
         # TODO cache this!
         # TODO oblate option for x,y=sqrt(r^2 + a^2) rather than r
@@ -457,9 +481,15 @@ class Grid:
         if native:
             x = m[1]
             y = m[3]
+            if coord:
+                print("Native parameter overrides coordinate parameter.")
         else:
-            x = self.coords.cart_x(m, log_r)
-            y = self.coords.cart_y(m, log_r)
+            if coord:
+                x = self.coords.r(m)
+                y = self.coords.th(m)
+            else:
+                x = self.coords.cart_x(m, log_r)
+                y = self.coords.cart_y(m, log_r)
         
         return np.squeeze(x), np.squeeze(y)
 
@@ -600,17 +630,20 @@ class Grid:
             mesh = False
             native = False
             half = False
+            coord = False
             if '_mesh' in key:
                 mesh = True
             if '_native' in key:
                 native = True
             if '_half' in key:
                 half = True
+            if '_coord' in key:
+                coord = True
             if 'xy' in key:
-                self.cache[key] = self.get_xy_locations(mesh, native)
+                self.cache[key] = self.get_xy_locations(mesh, native, coord=coord)
                 return self.cache[key]
             elif 'xz' in key:
-                self.cache[key] = self.get_xz_locations(mesh, native, half)
+                self.cache[key] = self.get_xz_locations(mesh, native, half, coord=coord)
                 return self.cache[key]
             else:
                 raise NotImplementedError("Grid cannot return plotting values for {}".format(key))
@@ -656,6 +689,8 @@ class Grid:
             return self.coord_all()[int(key[-1:])]
         elif key in ['X']:
             return self.coord_all()
+        elif key in ['Xcoord']:
+            return self.coord_all(native=False)
 
         # These are last to allow overriding with the above
 
