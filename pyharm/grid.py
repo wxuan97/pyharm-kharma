@@ -198,6 +198,8 @@ class Grid:
             self.coords = MKS(params)
         elif params['coordinates'] == "eks":
             self.coords = EKS(params)
+        elif params['coordinates'] == "wks":
+            self.coords = WKS(params)
         elif params['coordinates'] == "superexp":
             self.coords = SEKS(params)
         elif params['coordinates'] == "ks":

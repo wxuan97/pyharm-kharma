@@ -176,7 +176,7 @@ class AnaResults(object):
             # When reading HDF5 files, just open the file
             # When reading diagnostic output, read the whole thing
             self.fname = fname
-            if ".h5" in fname or ".hdf5" in fname:
+            if ".h5" in fname or ".hdf5" in fname or ".phdf" in fname :
                 # Read analysis results
                 self.file = h5py.File(fname, "r")
                 self.ftype = "ana"

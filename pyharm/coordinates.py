@@ -680,6 +680,39 @@ class FMKS(MKS):
     def of_bl(self, r, th, phi):
         pass
 
+class WKS(EKS):
+    """Wide Pole Kerr-Schild coordinates.
+    """
+    def __init__(self, met_params=default_met_params):
+        super(EKS, self).__init__(met_params)
+        self.lin_frac = met_params['lin_frac']
+        self.smoothness = met_params['smoothness']
+        
+    def th(self, x):
+        tmp = 1 - self.lin_frac
+        tmp2 = x[2] / self.smoothness
+        th_w = np.pi / 2 * (
+            1 + self.lin_frac*(2*x[2] - 1) +
+            tmp*(np.tanh(tmp2 - 1/self.smoothness)+1) - 
+            tmp*(np.tanh(-tmp2)+1)
+        )
+        return self.correct_small_th(th_w)
+        #return th_g + np.exp(self.mks_smooth * (self.startx1 - x[1])) * (th_j - th_g)
+
+    def dxdX(self, x):
+        # TODO evaluate these numerically?
+        sech = lambda x: 1 / np.cosh(x)
+        dxdX = np.zeros([4, 4, *x.shape[1:]])
+        dxdX[0, 0] = 1
+        dxdX[1, 1] = np.exp(x[1])
+        dxdX[2, 2] = np.pi / 2 *(
+            2*self.lin_frac + (1-self.lin_frac)/self.smoothness * (
+                sech((x[2]-1)/self.smoothness)**2 + sech(-x[2]/self.smoothness)**2
+            )
+        )
+        dxdX[3, 3] = 1
+        return dxdX
+
 
 # TODO Make this inherit from KS
 class BHAC_MKS(CoordinateSystem):
