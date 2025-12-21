@@ -55,17 +55,40 @@ fns_dict = {# 4-vectors
             'ucov': lambda dump: dump.grid.lower_grid(dump['ucon']),
             'bcon': lambda dump: bcon_calc(dump),
             'bcov': lambda dump: dump.grid.lower_grid(dump['bcon']),
+            # 3-vectors
+            'vr': lambda dump: dump["u^r"] / dump["u^t"],
+            'vth': lambda dump: dump["u^th"] / dump["u^t"],
+            'vphi': lambda dump: dump["u^phi"] / dump["u^t"],
+            'v1': lambda dump: dump["u^r"] / dump["u^t"],
+            'v2': lambda dump: dump["u^th"] / dump["u^t"],
+            'v3': lambda dump: dump["u^phi"] / dump["u^t"],
+            'v': lambda dump: np.stack((dump['vr'], dump['vth'], dump['vphi'])),
+            # 3 to 4-vectors
+            'vcon': lambda dump: np.stack((np.zeros((dump['U1'].shape)),dump['vr'], dump['vth'], dump['vphi'])),
+            'vcov': lambda dump: dump.grid.lower_grid(dump['vcon']),
+            'Bcon': lambda dump: np.stack((np.zeros((dump['U1'].shape)),dump['B1'], dump['B2'], dump['B3'])),
+            'Bcov': lambda dump: dump.grid.lower_grid(dump['Bcon']),
             # Versions in base coordinates
             # these use the reverse of dxdX/dXdx as they transform *back*
             'ucon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX"], dump['ucon']),
             'ucov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['ucov']),
             'bcon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX"], dump['bcon']),
             'bcov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['bcov']),
+            'Bcon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['Bcon']),
+            'Bcov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['Bcov']),
+            'vcon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['vcon']),
+            'vcov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['vcov']),
             # Versions in Cartesian
             'ucon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['ucon_base']),
             'ucov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['ucov_base']),
             'bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['bcon_base']),
             'bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['bcov_base']),
+            'Bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['Bcon_base']),
+            'Bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['Bcov_base']),
+            'vcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['vcon_base']),
+            'vcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['vcov_base']),
+            'B_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"][1:,1:], dump['B']),
+            'v_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"][1:,1:], dump['v']),
             # Versions in BL
             'ucon_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dxdX_bl'], dump['ucon_base']),
             'ucov_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dXdx_bl'], dump['ucov_base']),
@@ -91,7 +114,6 @@ fns_dict = {# 4-vectors
             'Gamma': lambda dump: lorentz_calc(dump),
             'cs': lambda dump: np.sqrt(dump['gam'] * dump['Pg'] / (dump['RHO'] + dump['gam'] * dump['UU'])),
             'vA': lambda dump: alfven_speed(dump),
-            'vr': lambda dump: dump["u^r"] / dump["u^t"],
             'Omega': lambda dump: dump["u^phi"] / dump["u^t"] ,
             # TODO magnetosonic, EMHD speed, effective timestep
             # Fluxes in radial direction: Mass, Energy, Angular Momentum

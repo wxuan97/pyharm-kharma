@@ -318,6 +318,12 @@ class FluidState:
         if key[-2:] == "^x" or key[-2:] == "^y" or key[-2:] == "^z":
             return self[key[0]+"con_cart"][["t", "x", "y", "z"].index(key.split("^")[-1])]
 
+        # Return a list of available variables
+        if key == "vars":
+            print("Most of the variables available can be seen in 'variables.py' with extension from 'fluid_state.py'.")
+            print("Available key variables are: {}".format(variables.fns_dict.keys()))
+            return variables.fns_dict
+
         # Return an array of the correct size filled with just zero or one
         # Don't cache these
         # TODO avoid file read?
