@@ -196,8 +196,11 @@ class CoordinateSystem(object):
     def gcov(self, x):
         """Covariant metric in native coordinates at some native location 4-vector X"""
         gcov_ks = self.gcov_ks(x)
-        dxdX = self.dxdX(x)
-        return np.einsum("ab...,ac...,bd...->cd...", gcov_ks, dxdX, dxdX)
+        # WX edit: The covariant metric taking native coordinates just yields the wrong result even
+        # after transformation, so we will ignore the coordinate transformation below
+        # dxdX = self.dxdX(x)
+        return gcov_ks
+        # return np.einsum("ab...,ac...,bd...->cd...", gcov_ks, dxdX, dxdX)
 
     def gcon(self, x):
         """Return contravariant form of the metric.
@@ -708,11 +711,13 @@ class WKS(EKS):
         # TODO evaluate these numerically?
         sech = lambda x: 1 / np.cosh(x)
         dxdX = np.zeros([4, 4, *x.shape[1:]])
+        tmp = 1 - self.lin_frac
+        lamb = self.smoothness
         dxdX[0, 0] = 1
         dxdX[1, 1] = np.exp(x[1])
         dxdX[2, 2] = np.pi / 2 *(
-            2*self.lin_frac + (1-self.lin_frac)/self.smoothness * (
-                sech((x[2]-1)/self.smoothness)**2 + sech(-x[2]/self.smoothness)**2
+            2*self.lin_frac + tmp/lamb * (
+                sech((x[2]-1)/lamb)**2 + sech(-x[2]/lamb)**2
             )
         )
         dxdX[3, 3] = 1

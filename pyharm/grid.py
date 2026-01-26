@@ -192,7 +192,7 @@ class Grid:
             self.coords = FMKS(params)
         elif "mks" in params['transform'] or "modif" in params['transform']:
             self.coords = MKS(params)
-        elif "eks" in params['transform'] or "exponent" in params['transform']:
+        elif "eks" in params['transform'] or "exponent" in params['transform'] or "exp" in params['transform']:
             self.coords = EKS(params)
         elif params['coordinates'] == "wks":
             self.coords = WKS(params)
@@ -439,6 +439,7 @@ class Grid:
             else:
                 # Append reversed in th.  We're now contiguous over th=180, so we remove the last
                 # (or after reversal, first) zone of the flipped (left) side
+                n_theta = m.shape[2]
                 m = np.append(m[:, :, :, 0], np.flip(m[:, :, :-1, 1], 2), 2)
         else:
             # Version for zone centers doesn't need the extra 
@@ -455,7 +456,9 @@ class Grid:
         else:
             if coord:
                 x = self.coords.r(m)
-                z = self.coords.phi(m)
+                z = self.coords.th(m)
+                # flip the sign of theta
+                z[:,n_theta:] *= -1
             else:
                 x = self.coords.cart_x(m, log_r)
                 z = self.coords.cart_z(m, log_r)
@@ -486,7 +489,7 @@ class Grid:
         else:
             if coord:
                 x = self.coords.r(m)
-                y = self.coords.th(m)
+                y = self.coords.phi(m)
             else:
                 x = self.coords.cart_x(m, log_r)
                 y = self.coords.cart_y(m, log_r)
@@ -660,6 +663,16 @@ class Grid:
             # TODO better gcon/gdet if gcov is available
             self.cache[key] = getattr(self.coords, key)(self.coord_ij())
             return self.cache[key]
+        elif key in ['r_all', "th_all"]:
+            loc_key = key.split("_")[0]
+            # do not cache the 3D versions
+            # check whether 2D cache exists or not
+            try:
+                result = self.cache[loc_key]
+            except KeyError:
+                self.cache[loc_key] = getattr(self.coords, loc_key)(self.coord_ij())
+                result = self.cache[loc_key]
+            return np.repeat(result,self.params['n3'],axis=2)
         # Versions with a location specified, i.e. not at zone centers
         elif 'gcon' in key or 'gcov' in key or 'gdet' in key or 'lapse' in key:
             loc_tag = key.split("_")[-1]
