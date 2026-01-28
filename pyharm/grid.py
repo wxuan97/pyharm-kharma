@@ -657,14 +657,19 @@ class Grid:
             return self.dx[int(key[-1:])]
         elif key in ['r', 'th', 'dxdX', 'dXdx', 'dXdx_cart', 'dxdX_cart',
                      'dXdx_bl', 'dxdX_bl', 'gcon_ks', 'gcov_ks', 'gcon_bl', 'gcov_bl',
-                     'delta', 'sigma', 'aa', 'gcon', 'gcov', 'gdet', 'lapse', 'conn']:
+                     'delta', 'sigma', 'aa', 'gcon', 'gcov', 'gdet', 'lapse', 'conn',
+                     'gdet_native', 'lapse_native', 'gcon_native', 'gcov_native']:
+            # WX edit: Now assumes every output to be on the physical grid instead of the native grid.
             # These keys are symmetric in phi, so we cache/return "2D" versions,
             # of shape N1xN2x1 so they broadcast correctly
             # TODO better gcon/gdet if gcov is available
             self.cache[key] = getattr(self.coords, key)(self.coord_ij())
             return self.cache[key]
-        elif key in ['r_all', "th_all"]:
-            loc_key = key.split("_")[0]
+        elif key in ['r_all', "th_all", 'gdet_all', 'gdet_native_all']:
+            if key == "gdet_native_all":
+                loc_key = "gdet_native"
+            else:
+                loc_key = key.split("_")[0]
             # do not cache the 3D versions
             # check whether 2D cache exists or not
             try:

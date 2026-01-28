@@ -68,25 +68,40 @@ fns_dict = {# 4-vectors
             'vcov': lambda dump: dump.grid.lower_grid(dump['vcon']),
             'Bcon': lambda dump: np.stack((np.zeros((dump['U1'].shape)),dump['B1'], dump['B2'], dump['B3'])),
             'Bcov': lambda dump: dump.grid.lower_grid(dump['Bcon']),
+            'Br': lambda dump: dump['B'][0],
+            'Bth': lambda dump: dump['B'][1],
+            'Bphi': lambda dump: dump['B'][2],
+            'ur': lambda dump: dump['ucon'][1],
+            'uth': lambda dump: dump['ucon'][2],
+            'uphi': lambda dump: dump['ucon'][3],
+            # WX edit: commented out the 'base' version since everything will be in the KS base coordinate now.
+
             # Versions in base coordinates
             # these use the reverse of dxdX/dXdx as they transform *back*
-            'ucon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX"], dump['ucon']),
-            'ucov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['ucov']),
-            'bcon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX"], dump['bcon']),
-            'bcov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['bcov']),
-            'Bcon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['Bcon']),
-            'Bcov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['Bcov']),
-            'vcon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['vcon']),
-            'vcov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['vcov']),
+            # 'ucon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX"], dump['ucon']),
+            # 'ucov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['ucov']),
+            # 'bcon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX"], dump['bcon']),
+            # 'bcov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['bcov']),
+            # 'Bcon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['Bcon']),
+            # 'Bcov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['Bcov']),
+            # 'vcon_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['vcon']),
+            # 'vcov_base': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx"], dump['vcov']),
             # Versions in Cartesian
-            'ucon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['ucon_base']),
-            'ucov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['ucov_base']),
-            'bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['bcon_base']),
-            'bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['bcov_base']),
-            'Bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['Bcon_base']),
-            'Bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['Bcov_base']),
-            'vcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['vcon_base']),
-            'vcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['vcov_base']),
+            # 'ucon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['ucon_base']),
+            # 'ucov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['ucov_base']),
+            # 'bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['bcon_base']),
+            # 'bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['bcov_base']),
+            # 'Bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['Bcon_base']),
+            # 'Bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['Bcov_base']),
+            # 'vcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['vcon_base']),
+            # 'vcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['vcov_base']),
+            'ucon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['ucon']),
+            'ucov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['ucov']),
+            'bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['bcon']),
+            'bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['bcov']),
+            'Bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['Bcon']),
+            'Bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['Bcov']),
+
             'B_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"][1:,1:], dump['B']),
             'v_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"][1:,1:], dump['v']),
             'Bx': lambda dump: dump['B_cart'][0],
@@ -96,10 +111,10 @@ fns_dict = {# 4-vectors
             'vy': lambda dump: dump['v_cart'][1],
             'vz': lambda dump: dump['v_cart'][2],
             # Versions in BL
-            'ucon_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dxdX_bl'], dump['ucon_base']),
-            'ucov_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dXdx_bl'], dump['ucov_base']),
-            'bcon_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dxdX_bl'], dump['bcon_base']),
-            'bcov_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dXdx_bl'], dump['bcov_base']),
+            'ucon_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dxdX_bl'], dump['ucon']),
+            'ucov_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dXdx_bl'], dump['ucov']),
+            'bcon_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dxdX_bl'], dump['bcon']),
+            'bcov_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dXdx_bl'], dump['bcov']),
             # Renaming
             'u': lambda dump: dump['UU'],
             'p': lambda dump: dump['Pg'],
@@ -175,26 +190,29 @@ def lorentz_calc(dump):
     if 'ucon' in dump.cache:
         return dump['ucon'][0] * dump['lapse']
     else:
-        return np.sqrt(1 + (dump['gcov'][1, 1] * dump['U1'] ** 2 +
-                            dump['gcov'][2, 2] * dump['U2'] ** 2 +
-                            dump['gcov'][3, 3] * dump['U3'] ** 2) + \
-                            2. * (dump['gcov'][1, 2] * dump['U1'] * dump['U2'] +
-                                  dump['gcov'][1, 3] * dump['U1'] * dump['U3'] +
-                                  dump['gcov'][2, 3] * dump['U2'] * dump['U3']))
+        return np.sqrt(1 + (dump['gcov_native'][1, 1] * dump['U1'] ** 2 +
+                            dump['gcov_native'][2, 2] * dump['U2'] ** 2 +
+                            dump['gcov_native'][3, 3] * dump['U3'] ** 2) + \
+                            2. * (dump['gcov_native'][1, 2] * dump['U1'] * dump['U2'] +
+                                  dump['gcov_native'][1, 3] * dump['U1'] * dump['U3'] +
+                                  dump['gcov_native'][2, 3] * dump['U2'] * dump['U3']))
 
 def ucon_calc(dump):
     """Find contravariant fluid four-velocity"""
     ucon = np.zeros((4, *dump['U1'].shape))
-    ucon[0] = dump['Gamma'] / dump['lapse']
+    ucon[0] = dump['Gamma'] / dump['lapse_native']
+    # WX edit: we will calculate ucon in native coordinates first
     for mu in range(1, 4):
-        ucon[mu] = dump['uvec'][mu-1] - dump['Gamma'] * dump['lapse'] * dump['gcon'][0, mu]
-
-    return ucon
+        ucon[mu] = dump['uvec'][mu-1] - dump['Gamma'] * dump.grid['lapse_native'] * dump.grid['gcon_native'][0, mu]
+    # WX edit: Then we transform into physical coordinates
+    result = np.einsum("ij...,j...->i...",dump['dxdX'],ucon)
+    return result
 
 
 def bcon_calc(dump):
     """Calculate magnetic field four-vector"""
     # Return zeros if B is not present
+    # WX edit: This will return the KS coordinate representation of bcon instead othe native coordinate
     try:
         B = dump["B"]
     except (IOError, OSError):

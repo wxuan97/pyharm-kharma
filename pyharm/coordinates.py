@@ -144,6 +144,7 @@ class CoordinateSystem(object):
         """Covariant metric in Kerr-Schild coordinates at some native location 4-vector X"""
         gcov_ks = np.zeros([4, 4, *(x.shape[1:])])
         r, th, _ = self.ks_coord(x)
+
         if 'small_th' not in self.__dict__:
             self.small_th = 1e-20
         th = self.correct_small_th(th)
@@ -194,19 +195,28 @@ class CoordinateSystem(object):
         return self.gcon_from_gcov(self.gcov_bl(x))
 
     def gcov(self, x):
+        """Covariant metric in physical coordinates at some physical location 4-vector X"""
+        gcov_ks = self.gcov_ks(x)
+        return gcov_ks
+    
+    def gcov_native(self, x):
         """Covariant metric in native coordinates at some native location 4-vector X"""
         gcov_ks = self.gcov_ks(x)
-        # WX edit: The covariant metric taking native coordinates just yields the wrong result even
-        # after transformation, so we will ignore the coordinate transformation below
-        # dxdX = self.dxdX(x)
-        return gcov_ks
-        # return np.einsum("ab...,ac...,bd...->cd...", gcov_ks, dxdX, dxdX)
-
+        dxdX = self.dxdX(x)
+        return np.einsum("ab...,ac...,bd...->cd...", gcov_ks, dxdX, dxdX)
+    
     def gcon(self, x):
         """Return contravariant form of the metric.
         As with all coordinate functions, the matrix/vector indices are *first*.
         """
+        # WX edit: now assume it to be physical gdet in stead of native gcon
         return self.gcon_from_gcov(self.gcov(x))
+    
+    def gcon_native(self, x):
+        """Return contravariant form of the metric.
+        As with all coordinate functions, the matrix/vector indices are *first*.
+        """
+        return self.gcon_from_gcov(self.gcov_native(x))
 
     def gcon_from_gcov(self, gcov):
         """Return contravariant form of the metric, given the covariant form.
@@ -216,14 +226,23 @@ class CoordinateSystem(object):
 
     def gdet(self, X):
         r"""Return the negative root determinant of the metric :math:`\sqrt{-g}`."""
+        # WX edit: now assume it to be physical gdet in stead of native gdet
+        # return self.gdet_from_gcov(self.gcov(X))
         return self.gdet_from_gcov(self.gcov(X))
-
+    
+    def gdet_native(self, X):
+        r"""Return the negative root determinant of the metric :math:`\sqrt{-g}` with native coordinates."""
+        return self.gdet_from_gcov(self.gcov_native(X))
+    
     def gdet_from_gcov(self, gcov):
         r"""Return the negative root determinant of the metric :math:`\sqrt{-g}`, given the covariant form."""
         return np.sqrt(-la.det(np.einsum("ij...->...ij", gcov)))
 
     def lapse(self, X):
         return 1./np.sqrt(-self.gcon(X)[0,0])
+    
+    def lapse_native(self, X):
+        return 1./np.sqrt(-self.gcon_native(X)[0,0])
 
     # TODO Einsum this too
     def conn(self, x, delta=1e-5):

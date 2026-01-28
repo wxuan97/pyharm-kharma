@@ -120,6 +120,16 @@ class FluidState:
             self.params = params
         self.units = units
 
+        if grid is None:
+            if add_grid:
+                self.grid = Grid(self.params, caches=use_grid_cache, cache_conn=cache_conn)
+            else:
+                self.grid = None
+        else:
+            self.grid = grid
+
+        self.slice = ()
+
         if isinstance(data_source, dict):
             self.cache = data_source
             # Make sure we have both versions of uvec,B
@@ -153,19 +163,9 @@ class FluidState:
                 else:
                     self.cache['prims'] = np.stack((self.cache['RHO'], self.cache['UU'],
                                                     self.cache['U1'], self.cache['U2'], self.cache['U3']))
-
+            
         else:
             self.cache = {}
-
-        if grid is None:
-            if add_grid:
-                self.grid = Grid(self.params, caches=use_grid_cache, cache_conn=cache_conn)
-            else:
-                self.grid = None
-        else:
-            self.grid = grid
-
-        self.slice = ()
 
     def __del__(self):
         # Try to clean up what we can. Anything that may possibly not be a simple ref
@@ -309,10 +309,15 @@ class FluidState:
             return self[key[:-2]+"con"][int(key[-1])]
 
         # Return transformed vector components
+        # WX edit: changed ucon/ucov to be in physical coordinate
         if key[-2:] == "_t" or key[-2:] == "_r" or key[-3:] == "_th" or key[-4:] == "_phi":
-            return self[key[0]+"cov_base"][["t", "r", "th", "phi"].index(key.split("_")[-1])]
+            return self[key[0]+"cov"][["t", "r", "th", "phi"].index(key.split("_")[-1])]
         if key[-2:] == "^t" or key[-2:] == "^r" or key[-3:] == "^th" or key[-4:] == "^phi":
-            return self[key[0]+"con_base"][["t", "r", "th", "phi"].index(key.split("^")[-1])]
+            return self[key[0]+"con"][["t", "r", "th", "phi"].index(key.split("^")[-1])]
+        # if key[-2:] == "_t" or key[-2:] == "_r" or key[-3:] == "_th" or key[-4:] == "_phi":
+        #     return self[key[0]+"cov_base"][["t", "r", "th", "phi"].index(key.split("_")[-1])]
+        # if key[-2:] == "^t" or key[-2:] == "^r" or key[-3:] == "^th" or key[-4:] == "^phi":
+        #     return self[key[0]+"con_base"][["t", "r", "th", "phi"].index(key.split("^")[-1])]
         if key[-2:] == "_x" or key[-2:] == "_y" or key[-2:] == "_z":
             return self[key[0]+"cov_cart"][["t", "x", "y", "z"].index(key.split("_")[-1])]
         if key[-2:] == "^x" or key[-2:] == "^y" or key[-2:] == "^z":
@@ -340,6 +345,11 @@ class FluidState:
             else:
                 out = self.reader.read_var(key, astype=astype, slc=self.slice)
             if out is not None:
+                # WX edit: we can only transform 'B' here to physical coordinates
+                if key in ['B']:
+                    return np.einsum("ij...,i...->j...",self['dXdx'][1:,1:],out)
+                # WX edit: for 'uvec', we need to transform the full 'ucon' from native to physical first as it has
+                # different lapse / shift values.
                 return out
 
         raise ValueError("FluidState cannot find or compute {}".format(key))
