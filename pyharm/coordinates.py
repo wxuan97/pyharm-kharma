@@ -171,6 +171,42 @@ class CoordinateSystem(object):
         gcov_ks[3, 3] = s2 * (rho2 + self.a ** 2 * s2 * (1. + 2. * r / rho2))
 
         return gcov_ks
+    
+    def gcov_cart(self, x):
+        xx = self.cart_x(x)
+        yy = self.cart_y(x)
+        zz = self.cart_z(x)
+        
+        a = self.a
+
+        Rsq = xx**2 + yy**2 + zz**2
+        tmp = Rsq - a**2
+        r = np.sqrt((tmp + np.sqrt(tmp**2 + 4*((a*zz)**2)))/2)
+        gcov = np.zeros([4,4,*(x.shape[1:])])
+
+        tmp = 2*(r**3)/(r**4 + (a**2)*(zz**2))
+        denom = r**2 + a**2
+        tmp1 = r*xx + a*yy
+        tmp2 = r*yy - a*xx
+
+        gcov[0, 0] = -1 + tmp
+        gcov[0, 1] = gcov[1, 0] = tmp * tmp1/denom
+        gcov[0, 2] = gcov[2, 0] = tmp * tmp2/denom
+        gcov[0, 3] = gcov[3, 0] = tmp * zz / r
+
+        gcov[1, 1] = 1 + tmp * (tmp1**2) / (denom**2)
+        gcov[1, 2] = gcov[2, 1] = tmp * tmp1 * tmp2 / (denom**2)
+        gcov[1, 3] = gcov[3, 1] = tmp * tmp1 * zz / (r*denom)
+
+        gcov[2, 2] = 1 + tmp * (tmp2**2) / (denom**2)
+        gcov[2, 3] = gcov[3, 2] = tmp * zz * tmp2 / (r*denom)
+
+        gcov[3, 3] = 1 + tmp * (zz**2) / (r**2)
+
+        return gcov
+    
+    def gcon_cart(self, x):
+        return self.gcon_from_gcov(self.gcov_cart(x))
 
     def delta(self, x):
         r = self.r(x)
@@ -204,6 +240,11 @@ class CoordinateSystem(object):
         gcov_ks = self.gcov_ks(x)
         dxdX = self.dxdX(x)
         return np.einsum("ab...,ac...,bd...->cd...", gcov_ks, dxdX, dxdX)
+    
+    # def gcov_cart(self, x):
+    #     gcov_ks = self.gcov_ks(x)
+    #     dxdX_cart = self.dxdX_cart(x)
+    #     return np.einsum("ab...,ac...,bd...->cd...", gcov_ks, dxdX_cart, dxdX_cart)
     
     def gcon(self, x):
         """Return contravariant form of the metric.
@@ -294,7 +335,8 @@ class CoordinateSystem(object):
     def dXdx(self, x):
         return np.einsum("...ij->ij...", la.inv(np.einsum("ij...->...ij", self.dxdX(x))))
     def dXdx_cart(self, x):
-        return np.einsum("...ij->ij...", la.inv(np.einsum("ij...->...ij", self.dxdX_cart(x))))
+        dxdX_cart = self.dxdX_cart(x)
+        return np.einsum("...ij->ij...", la.inv(np.einsum("ij...->...ij", dxdX_cart)))
     def dXdx_bl(self, x):
         return np.einsum("...ij->ij...", la.inv(np.einsum("ij...->...ij", self.dxdX_bl(x))))
 

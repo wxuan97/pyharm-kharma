@@ -166,6 +166,8 @@ class FluidState:
             
         else:
             self.cache = {}
+        
+        self._retrieving = set()
 
     def __del__(self):
         # Try to clean up what we can. Anything that may possibly not be a simple ref
@@ -198,160 +200,170 @@ class FluidState:
         I have no idea why you'd want that.  Just, don't.
         """
         #print("FluidState getting",key)
-        if type(key) in (list, tuple):
-            slc = key
-            relevant = [False, False, False]
-            new_slc = list(slc)
-            for i in range(3):
-                if isinstance(slc[i], slice):
-                    new_slc[i] = slc[i]
+        if key in self._retrieving:
+            raise RuntimeError(f"Infinite recursion detected! '{key}' requested while already being calculated. "
+                            f"Active retrieval stack: {list(self._retrieving)}")
+
+        self._retrieving.add(key)
+        try:
+            if type(key) in (list, tuple):
+                slc = key
+                relevant = [False, False, False]
+                new_slc = list(slc)
+                for i in range(3):
+                    if isinstance(slc[i], slice):
+                        new_slc[i] = slc[i]
+                    else:
+                        new_slc[i] = slice(slc[i], slc[i]+1) # For gauging relevance later
+                    relevant[i] = ((new_slc[i].start is not None) or (new_slc[i].stop is not None))
+
+                if not (relevant[0] or relevant[1] or relevant[2]):
+                    return self
+
+                # TODO somehow proper copy constructor
+                slc = tuple(new_slc)
+
+                # Pass nothing if we're in-memory only -- we'll copy the cache
+                if self.fname == "memory_array":
+                    out = FluidState({}, add_grid=False, params=self.params, units=self.units)
                 else:
-                    new_slc[i] = slice(slc[i], slc[i]+1) # For gauging relevance later
-                relevant[i] = ((new_slc[i].start is not None) or (new_slc[i].stop is not None))
+                    out = FluidState(self.fname, add_grid=False, params=self.params, units=self.units, multizone=self.multizone)
 
-            if not (relevant[0] or relevant[1] or relevant[2]):
-                return self
+                # Forcibly add the cache
+                for c in self.cache:
+                    out.cache[c] = self.cache[c][(Ellipsis,) + slc]
+                if self.grid is not None:
+                    out.grid = self.grid[slc]
+                out.slice = slc
 
-            # TODO somehow proper copy constructor
-            slc = tuple(new_slc)
-
-            # Pass nothing if we're in-memory only -- we'll copy the cache
-            if self.fname == "memory_array":
-                out = FluidState({}, add_grid=False, params=self.params, units=self.units)
-            else:
-                out = FluidState(self.fname, add_grid=False, params=self.params, units=self.units, multizone=self.multizone)
-
-            # Forcibly add the cache
-            for c in self.cache:
-                out.cache[c] = self.cache[c][(Ellipsis,) + slc]
-            if self.grid is not None:
-                out.grid = self.grid[slc]
-            out.slice = slc
-
-            return out
-
-        # Return things from the cache if we can
-        if key in self.cache:
-            return self.cache[key]
-        if key in self.params:
-            return self.params[key]
-        if "/" in key:
-            try:
-                keys = key.split("/")
-                return parameters.to_number(self.params['config']["/".join(keys[:-1])][keys[-1]])
-            except:
-                pass
-        elif self.units is not None and key in self.units:
-            return self.units[key]
-
-        # Otherwise run functions and cache the result
-        # Putting this before reading lets us translate & standardize reads/caches
-        if key in variables.fns_dict:
-            self.cache[key] = variables.fns_dict[key](self)
-            return self.cache[key]
-
-        # Return coordinates and things from the grid
-        # Default to centers when returning multi-location vars, to avoid location madness
-        if self.grid is not None and key in self.grid:
-            return self.grid[key]
-
-        # Prefixes for a few common 1:1 math operations.
-        # Most math should be done by reductions.py
-        # Don't bother to cache these, they aren't intensive to calculate
-        if key[:5] == "sqrt_":
-            return np.sqrt(self[key[5:]])
-        if key[:4] == "abs_":
-            return np.abs(self[key[4:]])
-        if key[:4] == "log_":
-            return np.log10(self[key[4:]])
-        if key[:3] == "ln_":
-            return np.log(self[key[3:]])
-        if key[:4] == "inv_":
-            return 1/self[key[4:]]
-        if key[:4] == "neg_":
-            return -self[key[4:]]
-
-        # Return MHD tensor components: don't cache
-        if ((key[-2:] == "_0" or key[-2:] == "_1" or key[-2:] == "_2" or key[-2:] == "_3")
-              and (key[-4:-2] == "_0" or key[-4:-2] == "_1" or key[-4:-2] == "_2" or key[-4:-2] == "_3")):
-            i, j = int(key[-3]), int(key[-1])
-            if key[-5:-4] == "T":
-                return variables.T_cov(self, i, j)
-            elif key[-5:-4] == "F":
-                return variables.F_cov(self, i, j)
-
-        if ((key[-2:] == "_0" or key[-2:] == "_1" or key[-2:] == "_2" or key[-2:] == "_3")
-              and (key[-4:-2] == "^0" or key[-4:-2] == "^1" or key[-4:-2] == "^2" or key[-4:-2] == "^3")):
-            i, j = int(key[-3]), int(key[-1])
-            if key[-5:-4] == "T":
-                return variables.T_mixed(self, i, j)
-            elif key[-7:-4] == "TEM":
-                return variables.TEM_mixed(self, i, j)
-            elif key[-9:-4] == "TPAKE":
-                return variables.TPAKE_mixed(self, i, j)
-            elif key[-7:-4] == "TEN":
-                return variables.TEN_mixed(self, i, j)
-            elif key[-7:-4] == "TFl":
-                return variables.TFl_mixed(self, i, j)
-
-        if ((key[-2:] == "^0" or key[-2:] == "^1" or key[-2:] == "^2" or key[-2:] == "^3")
-              and (key[-4:-2] == "^0" or key[-4:-2] == "^1" or key[-4:-2] == "^2" or key[-4:-2] == "^3")):
-            i, j = int(key[-3]), int(key[-1])
-            if key[-5:-4] == "T":
-                return variables.T_con(self, i, j)
-            elif key[-5:-4] == "F":
-                return variables.F_con(self, i, j)
-
-        # Return vector components: do cache
-        if key[-2:] == "_0" or key[-2:] == "_1" or key[-2:] == "_2" or key[-2:] == "_3":
-            return self[key[:-2]+"cov"][int(key[-1])]
-        if key[-2:] == "^0" or key[-2:] == "^1" or key[-2:] == "^2" or key[-2:] == "^3":
-            return self[key[:-2]+"con"][int(key[-1])]
-
-        # Return transformed vector components
-        # WX edit: changed ucon/ucov to be in physical coordinate
-        if key[-2:] == "_t" or key[-2:] == "_r" or key[-3:] == "_th" or key[-4:] == "_phi":
-            return self[key[0]+"cov"][["t", "r", "th", "phi"].index(key.split("_")[-1])]
-        if key[-2:] == "^t" or key[-2:] == "^r" or key[-3:] == "^th" or key[-4:] == "^phi":
-            return self[key[0]+"con"][["t", "r", "th", "phi"].index(key.split("^")[-1])]
-        # if key[-2:] == "_t" or key[-2:] == "_r" or key[-3:] == "_th" or key[-4:] == "_phi":
-        #     return self[key[0]+"cov_base"][["t", "r", "th", "phi"].index(key.split("_")[-1])]
-        # if key[-2:] == "^t" or key[-2:] == "^r" or key[-3:] == "^th" or key[-4:] == "^phi":
-        #     return self[key[0]+"con_base"][["t", "r", "th", "phi"].index(key.split("^")[-1])]
-        if key[-2:] == "_x" or key[-2:] == "_y" or key[-2:] == "_z":
-            return self[key[0]+"cov_cart"][["t", "x", "y", "z"].index(key.split("_")[-1])]
-        if key[-2:] == "^x" or key[-2:] == "^y" or key[-2:] == "^z":
-            return self[key[0]+"con_cart"][["t", "x", "y", "z"].index(key.split("^")[-1])]
-
-        # Return a list of available variables
-        if key == "vars":
-            print("Most of the variables available can be seen in 'variables.py' with extension from 'fluid_state.py'.")
-            print("Available key variables are: {}".format(variables.fns_dict.keys()))
-            return variables.fns_dict
-
-        # Return an array of the correct size filled with just zero or one
-        # Don't cache these
-        # TODO avoid file read?
-        if key in ('zero', '0'):
-            return np.zeros_like(self['rho'])
-        if key in ('one', '1'):
-            return np.ones_like(self['rho'])
-        if self.fname != "memory_array":
-            # Read things that we haven't cached and absolutely can't calculate
-            # The reader keeps its own cache, so we don't add its items to ours
-            astype = np.int32 if "flag" in key else np.float64
-            if self.amr_level > 0:
-                out = self.reader.read_var(key, read_amr_level=self.amr_level, astype=astype, slc=self.slice)
-            else:
-                out = self.reader.read_var(key, astype=astype, slc=self.slice)
-            if out is not None:
-                # WX edit: we can only transform 'B' here to physical coordinates
-                if key in ['B']:
-                    return np.einsum("ij...,i...->j...",self['dXdx'][1:,1:],out)
-                # WX edit: for 'uvec', we need to transform the full 'ucon' from native to physical first as it has
-                # different lapse / shift values.
                 return out
 
-        raise ValueError("FluidState cannot find or compute {}".format(key))
+            # Return things from the cache if we can
+            if key in self.cache:
+                return self.cache[key]
+            if key in self.params:
+                return self.params[key]
+            if "/" in key:
+                try:
+                    keys = key.split("/")
+                    return parameters.to_number(self.params['config']["/".join(keys[:-1])][keys[-1]])
+                except:
+                    pass
+            elif self.units is not None and key in self.units:
+                return self.units[key]
+
+            # Otherwise run functions and cache the result
+            # Putting this before reading lets us translate & standardize reads/caches
+            if key in variables.fns_dict:
+                self.cache[key] = variables.fns_dict[key](self)
+                return self.cache[key]
+
+            # Return coordinates and things from the grid
+            # Default to centers when returning multi-location vars, to avoid location madness
+            if self.grid is not None and key in self.grid:
+                return self.grid[key]
+
+            # Prefixes for a few common 1:1 math operations.
+            # Most math should be done by reductions.py
+            # Don't bother to cache these, they aren't intensive to calculate
+            if key[:5] == "sqrt_":
+                return np.sqrt(self[key[5:]])
+            if key[:4] == "abs_":
+                return np.abs(self[key[4:]])
+            if key[:4] == "log_":
+                return np.log10(self[key[4:]])
+            if key[:3] == "ln_":
+                return np.log(self[key[3:]])
+            if key[:4] == "inv_":
+                return 1/self[key[4:]]
+            if key[:4] == "neg_":
+                return -self[key[4:]]
+
+            # Return MHD tensor components: don't cache
+            if ((key[-2:] == "_0" or key[-2:] == "_1" or key[-2:] == "_2" or key[-2:] == "_3")
+                and (key[-4:-2] == "_0" or key[-4:-2] == "_1" or key[-4:-2] == "_2" or key[-4:-2] == "_3")):
+                i, j = int(key[-3]), int(key[-1])
+                if key[-5:-4] == "T":
+                    return variables.T_cov(self, i, j)
+                elif key[-5:-4] == "F":
+                    return variables.F_cov(self, i, j)
+
+            if ((key[-2:] == "_0" or key[-2:] == "_1" or key[-2:] == "_2" or key[-2:] == "_3")
+                and (key[-4:-2] == "^0" or key[-4:-2] == "^1" or key[-4:-2] == "^2" or key[-4:-2] == "^3")):
+                i, j = int(key[-3]), int(key[-1])
+                if key[-5:-4] == "T":
+                    return variables.T_mixed(self, i, j)
+                elif key[-7:-4] == "TEM":
+                    return variables.TEM_mixed(self, i, j)
+                elif key[-9:-4] == "TPAKE":
+                    return variables.TPAKE_mixed(self, i, j)
+                elif key[-7:-4] == "TEN":
+                    return variables.TEN_mixed(self, i, j)
+                elif key[-7:-4] == "TFl":
+                    return variables.TFl_mixed(self, i, j)
+
+            if ((key[-2:] == "^0" or key[-2:] == "^1" or key[-2:] == "^2" or key[-2:] == "^3")
+                and (key[-4:-2] == "^0" or key[-4:-2] == "^1" or key[-4:-2] == "^2" or key[-4:-2] == "^3")):
+                i, j = int(key[-3]), int(key[-1])
+                if key[-5:-4] == "T":
+                    return variables.T_con(self, i, j)
+                elif key[-5:-4] == "F":
+                    return variables.F_con(self, i, j)
+
+            # Return vector components: do cache
+            if key[-2:] == "_0" or key[-2:] == "_1" or key[-2:] == "_2" or key[-2:] == "_3":
+                return self[key[:-2]+"cov"][int(key[-1])]
+            if key[-2:] == "^0" or key[-2:] == "^1" or key[-2:] == "^2" or key[-2:] == "^3":
+                return self[key[:-2]+"con"][int(key[-1])]
+
+            # Return transformed vector components
+            # WX edit: changed ucon/ucov to be in physical coordinate
+            if key[-2:] == "_t" or key[-2:] == "_r" or key[-3:] == "_th" or key[-4:] == "_phi":
+                return self[key[0]+"cov"][["t", "r", "th", "phi"].index(key.split("_")[-1])]
+            if key[-2:] == "^t" or key[-2:] == "^r" or key[-3:] == "^th" or key[-4:] == "^phi":
+                return self[key[0]+"con"][["t", "r", "th", "phi"].index(key.split("^")[-1])]
+            # if key[-2:] == "_t" or key[-2:] == "_r" or key[-3:] == "_th" or key[-4:] == "_phi":
+            #     return self[key[0]+"cov_base"][["t", "r", "th", "phi"].index(key.split("_")[-1])]
+            # if key[-2:] == "^t" or key[-2:] == "^r" or key[-3:] == "^th" or key[-4:] == "^phi":
+            #     return self[key[0]+"con_base"][["t", "r", "th", "phi"].index(key.split("^")[-1])]
+            if key[-2:] == "_x" or key[-2:] == "_y" or key[-2:] == "_z":
+                return self[key[0]+"cov_cart"][["t", "x", "y", "z"].index(key.split("_")[-1])]
+            if key[-2:] == "^x" or key[-2:] == "^y" or key[-2:] == "^z":
+                return self[key[0]+"con_cart"][["t", "x", "y", "z"].index(key.split("^")[-1])]
+
+            # Return a list of available variables
+            if key == "vars":
+                print("Most of the variables available can be seen in 'variables.py' with extension from 'fluid_state.py'.")
+                print("Available key variables are: {}".format(variables.fns_dict.keys()))
+                return variables.fns_dict
+
+            # Return an array of the correct size filled with just zero or one
+            # Don't cache these
+            # TODO avoid file read?
+            if key in ('zero', '0'):
+                return np.zeros_like(self['rho'])
+            if key in ('one', '1'):
+                return np.ones_like(self['rho'])
+            if self.fname != "memory_array":
+                # Read things that we haven't cached and absolutely can't calculate
+                # The reader keeps its own cache, so we don't add its items to ours
+                astype = np.int32 if "flag" in key else np.float64
+                if self.amr_level > 0:
+                    out = self.reader.read_var(key, read_amr_level=self.amr_level, astype=astype, slc=self.slice)
+                else:
+                    out = self.reader.read_var(key, astype=astype, slc=self.slice)
+                if out is not None:
+                    # WX edit: we can only transform 'B' here to physical coordinates
+                    if key in ['B']:
+                        return np.einsum("ij...,i...->j...",self['dXdx'][1:,1:],out)
+                    # WX edit: for 'uvec', we need to transform the full 'ucon' from native to physical first as it has
+                    # different lapse / shift values.
+                    if key == 'uvec':
+                        return out
+                    return out
+
+            raise ValueError("FluidState cannot find or compute {}".format(key))
+        finally:
+            self._retrieving.discard(key)
 
 

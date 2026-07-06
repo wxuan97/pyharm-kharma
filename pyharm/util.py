@@ -68,7 +68,7 @@ def i_of(var, val, behind=True, fail=False):
             if fail:
                 raise ValueError("Array does not contain value {}".format(val))
             else:
-                print("Warning: using last value {} as desired value {}".format(var[-1], val))
+                # print("Warning: using last value {} as desired value {}".format(var[-1], val))
                 break
 
     # Return zone before the value, usually what we want for fluxes

@@ -95,18 +95,30 @@ fns_dict = {# 4-vectors
             # 'Bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['Bcov_base']),
             # 'vcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['vcon_base']),
             # 'vcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['vcov_base']),
-            'ucon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['ucon']),
-            'ucov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['ucov']),
-            'bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['bcon']),
-            'bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['bcov']),
-            'Bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['Bcon']),
-            'Bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['Bcov']),
-
-            'B_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"][1:,1:], dump['B']),
-            'v_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"][1:,1:], dump['v']),
+            'ucon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['ucon']),
+            'ucov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['ucov']),
+            'bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['bcon']),
+            'bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['bcov']),
+            'Bcon_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"], dump['Bcon']),
+            'Bcov_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dXdx_cart"], dump['Bcov']),
+            'B_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"][1:,1:], dump['B']),
+            'gdetB': lambda dump: gdet_B(dump),
+            'gdetB1': lambda dump: gdet_B(dump)[0],
+            'gdetB2': lambda dump: gdet_B(dump)[1],
+            'gdetB3': lambda dump: gdet_B(dump)[2],
+            'gdetB_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"][1:,1:], dump['gdetB']),
+            'gdetv': lambda dump: gdet_v(dump),
+            'gdetvr': lambda dump: gdet_v(dump)[0],
+            'gdetvth': lambda dump: gdet_v(dump)[1],
+            'gdetvphi': lambda dump: gdet_v(dump)[2],
+            'gdetv_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"][1:,1:], dump['gdetv']),
+            'v_cart': lambda dump: np.einsum("ij...,j...->i...", dump["dxdX_cart"][1:,1:], dump['v']),
             'Bx': lambda dump: dump['B_cart'][0],
             'By': lambda dump: dump['B_cart'][1],
             'Bz': lambda dump: dump['B_cart'][2],
+            'gdetBx': lambda dump: dump['gdetB_cart'][0],
+            'gdetBy': lambda dump: dump['gdetB_cart'][1],
+            'gdetBz': lambda dump: dump['gdetB_cart'][2],
             'vx': lambda dump: dump['v_cart'][0],
             'vy': lambda dump: dump['v_cart'][1],
             'vz': lambda dump: dump['v_cart'][2],
@@ -170,6 +182,9 @@ fns_dict = {# 4-vectors
             'lam_MRI': lambda dump: lam_MRI(dump),
             'lam_MRI_old': lambda dump: lam_MRI_old(dump),
             'lam_MRI_transform': lambda dump: lam_MRI_transform(dump),
+            'LNRF_tetrad': lambda dump: LNRF_tetrad(dump),
+            'lam_MRI_phi': lambda dump: lam_MRI_phi(dump),
+            'lam_MRI_r': lambda dump: lam_MRI_r(dump),
             'divB_prims': lambda dump: divB(dump.grid, dump['B']),
             'divB_cons': lambda dump: divB_cons(dump.grid, dump['cons.B']),
             'divB_cons_rel': lambda dump: divB_cons(dump.grid, dump['cons.B']) / dump['b'] / dump["gdet"] * dump["dx1"],
@@ -184,6 +199,19 @@ fns_dict = {# 4-vectors
             }
 
 ## Physics functions ##
+def gdet_v(dump):
+    v = np.copy(dump['v'])
+    gcov = dump['gcov']
+    for i in range(1,4):
+        v[i-1] = v[i-1]*np.sqrt(gcov[i,i])
+    return v
+
+def gdet_B(dump):
+    B = np.copy(dump['B'])
+    gcov = dump['gcov']
+    for i in range(1,4):
+        B[i-1] = B[i-1]*np.sqrt(gcov[i,i])
+    return B
 
 def lorentz_calc(dump):
     """Find relativistic gamma-factor w.r.t. normal observer"""
@@ -319,6 +347,34 @@ def lam_MRI_old(dump):
 def alfven_speed(dump):
     return dump['b']/np.sqrt(dump["bsq"] + dump['rho'] + dump["gam"] * dump["UU"])
 
+def LNRF_tetrad(dump):
+    zeros = np.zeros_like(dump['lapse'])
+    gcov = dump['gcov']
+    gcon = dump['gcon']
+    lapse = dump['lapse']
+    
+    beta_r = gcon[0,1]*(lapse**2)
+    # t direction
+    e_t = np.array([
+        lapse, zeros, zeros, zeros
+    ])
+
+    e_r = np.array([
+        beta_r/np.sqrt(gcon[1,1]), 1/np.sqrt(gcon[1,1]), zeros, zeros
+    ])
+
+    e_th = np.array([
+        zeros, zeros, np.sqrt(gcov[2,2]), zeros
+    ])
+
+    e_phi = np.array([
+        beta_r*gcov[1,3]/np.sqrt(gcov[3,3]), gcov[1,3]/np.sqrt(gcov[3,3]), zeros, np.sqrt(gcov[3,3])
+    ])
+
+    # output is:
+    # first index is each individual array we see here, i.e what we will used for MRI calculation
+    return np.stack((e_t,e_r,e_th,e_phi))
+
 def lam_MRI(dump):
     return dump['vA'] / (dump['u^3']/dump['u^0'])
 
@@ -326,6 +382,18 @@ def lam_MRI_transform(dump):
     # From Porth et al (2019) & referenced Takahashi 
     return 2 * np.pi / (np.sqrt(dump['rho']*dump['h'] + dump['bsq']) * (dump['u^3']/dump['u^0'])) * \
             dump['b^th'] * np.sqrt(dump['r']**2 + dump['a']**2 * np.cos(dump['th'])**2)
+
+def lam_MRI_phi(dump):
+    tmp = 2 * np.pi / (np.sqrt(dump['rho']*dump['h'] + dump['bsq']) * (dump['u^3']/dump['u^0']))
+    tetrad_phi = dump["LNRF_tetrad"][3]
+    bcon_lnrf = np.einsum("i...,i...->...",tetrad_phi,dump['bcon'])
+    return tmp*bcon_lnrf
+
+def lam_MRI_r(dump):
+    tmp = 2 * np.pi / (np.sqrt(dump['rho']*dump['h'] + dump['bsq']) * (dump['u^3']/dump['u^0']))
+    tetrad_phi = dump["LNRF_tetrad"][1]
+    bcon_lnrf = np.einsum("i...,i...->...",tetrad_phi,dump['bcon'])
+    return tmp*bcon_lnrf
 
 def enthalpy(dump):
     return 1 + dump['Pg'] + dump['u']

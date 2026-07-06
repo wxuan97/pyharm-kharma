@@ -458,6 +458,7 @@ class Grid:
                 x = self.coords.r(m)
                 z = self.coords.th(m)
                 # flip the sign of theta
+                n_theta = m.shape[2]
                 z[:,n_theta:] *= -1
             else:
                 x = self.coords.cart_x(m, log_r)
@@ -663,7 +664,10 @@ class Grid:
             # These keys are symmetric in phi, so we cache/return "2D" versions,
             # of shape N1xN2x1 so they broadcast correctly
             # TODO better gcon/gdet if gcov is available
-            self.cache[key] = getattr(self.coords, key)(self.coord_ij())
+            self.cache[key] = getattr(self.coords, key)(self.coord_all(native=True))
+            return self.cache[key]
+        elif key in ['gcov_cart', 'gcon_cart',]:
+            self.cache[key] = getattr(self.coords, key)(self.coord_all(native=True))
             return self.cache[key]
         elif key in ['r_all', "th_all", 'gdet_all', 'gdet_native_all']:
             if key == "gdet_native_all":
@@ -679,7 +683,7 @@ class Grid:
                 result = self.cache[loc_key]
             return np.repeat(result,self.params['n3'],axis=2)
         # Versions with a location specified, i.e. not at zone centers
-        elif 'gcon' in key or 'gcov' in key or 'gdet' in key or 'lapse' in key:
+        elif ('gcon' in key or 'gcov' in key or 'gdet' in key or 'lapse' in key) and "cart" not in key:
             loc_tag = key.split("_")[-1]
             # TODO better gcon/gdet if gcov is available
             self.cache[key] = getattr(self.coords, key)(self.coord_ij(loc=_loc_from_tag(loc_tag)))
